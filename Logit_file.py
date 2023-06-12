@@ -201,7 +201,7 @@ def logit_se(theta, y, x):
     N,J,K = x.shape
 
     score = logit_score(theta, y, x)
-    Sigma = la.inv(np.einsum('nk,nm->km', score, score))
+    Sigma = np.einsum('nk,nm->km', score, score)
     SE = np.sqrt(np.diag(la.inv(Sigma)))
 
     return SE
