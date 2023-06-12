@@ -139,7 +139,7 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
     Args. 
         Beta: (K,) vector of parameters 
         x: (N,J,K) matrix of covariates 
-        a: (N,) vector of outcomes (integers in 0, 1, ..., J-1)
+        y: (N,J) matrix of outcomes 
 
     Returns
         ll_i: (N,) vector of loglikelihood contributions for a Logit
@@ -201,7 +201,7 @@ def logit_se(theta, y, x):
     N,J,K = x.shape
 
     score = logit_score(theta, y, x)
-    Sigma = np.einsum('n,nkm->km', np.ones((N,)), np.einsum('nk,nm->nkm', score, score))
+    Sigma = la.inv(np.einsum('nk,nm->km', score, score))
     SE = np.sqrt(np.diag(la.inv(Sigma)))
 
     return SE
