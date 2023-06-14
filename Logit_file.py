@@ -103,9 +103,7 @@ K = len(x_vars)
 
 # %%
 # response and explanatory variables as numpy arrays
-a = dat['y'].values.reshape((N,J))
-a = a[:, 0] # All values are equal along axis=1. Becomes an (N,) array i.e. it is a vector.
-y = pd.get_dummies(a).to_numpy() # Convert y to an (N,J) array as the onehot encoding
+y = pd.get_dummies(dat['y'].values.reshape((N,J))[:,0]).to_numpy() # Convert y to an (N,J) array as the onehot encoding. All values are equal along axis=1 in dataframe. Becomes an (N,) array i.e. it is a vector.
 x = dat[x_vars].values.reshape((N,J,K))
 
 # %% [markdown]
@@ -134,14 +132,14 @@ def util(Beta, x):
     return u
 
 # %%
-def logit_loglikehood(Beta, a, x, MAXRESCALE: bool = True):
+def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
     '''
     This function calculates the likelihood contributions of a Logit model
 
     Args. 
         Beta: (K,) vector of parameters 
         x: (N,J,K) matrix of covariates 
-        a: (N,) vector of outcomes (integers in 0, 1, ..., J-1)
+        y: (N,J) matrix of outcomes 
 
     Returns
         ll_i: (N,) vector of loglikelihood contributions for a Logit
@@ -160,13 +158,53 @@ def logit_loglikehood(Beta, a, x, MAXRESCALE: bool = True):
     denom = np.exp(v).sum(axis=1) # NOT keepdims! becomes (N,)
 
     # utility at chosen alternative for each individual i
-    v_i = v[np.arange(N), a] # Becomes (N,)
+    v_i = np.einsum('nj,nj->n', y, v) # Becomes (N,)
 
     # likelihood 
     ll_i = v_i - np.log(denom) # difference between two 1-dimensional arrays 
 
     return ll_i
 
+
+# %% [markdown]
+# The derivative of the likelihood function $\ell_i (\theta)$ wrt. parameters in the logit model if individual $i$ chose product $j$ is given by:
+# 
+# $$
+# \nabla_\theta \ell_i(\theta) = X_j - \frac{\sum_\ell e^{\theta' X_\ell}X_\ell}{\sum_\ell e^{\theta' X_\ell}}
+# $$
+# 
+# We may then consistently estimate the covariance matrix in the logit model by plugging the MLE $\hat \theta$ into the formula:
+# 
+# $$
+# \Sigma(\theta) = \left(\sum_i \nabla_\theta \ell_i(\theta)\nabla_\theta \ell_i(\theta)'\right)^{-1}
+# $$
+
+# %%
+def logit_score(theta, y, x):
+    ''' 
+    '''
+
+    N,J,K = x.shape
+
+    numer_term = np.einsum('nj,njk->njk', np.exp(np.einsum('k,njk->nj', theta, x)), x)
+    numer = np.einsum('j,njk->nk', np.ones((J,)), numer_term)
+    denom = np.einsum('j,nj->n', np.ones((J,)), np.exp(np.einsum('k,njk->nj', theta, x)))
+    score = np.einsum('nj,njk->nk', y, x - (numer / denom[:,None])[:,None,:])
+
+    return score
+
+# %%
+def logit_se(theta, y, x):
+    ''' 
+    '''
+
+    N,J,K = x.shape
+
+    score = logit_score(theta, y, x)
+    Sigma = np.einsum('nk,nm->km', score, score)
+    SE = np.sqrt(np.diag(la.inv(Sigma)))
+
+    return SE
 
 # %%
 def q_logit(Beta, y, x):
@@ -201,10 +239,12 @@ def estimate_logit(q, Beta0, y, x, options = {'disp': True}, **kwargs):
 
     # call optimizer
     result = optimize.minimize(Q, Beta0.tolist(), options=options, **kwargs)
+    pars = result.x
 
     # collect output in a dict 
     res = {
-        'beta': result.x, # vector of estimated parameters
+        'beta': pars, # vector of estimated parameters
+        'se': logit_se(pars, y, x),
         'success':  result.success, # bool, whether convergence was succesful 
         'nit':      result.nit, # no. algorithm iterations 
         'nfev':     result.nfev, # no. function evaluations 
@@ -220,11 +260,12 @@ def estimate_logit(q, Beta0, y, x, options = {'disp': True}, **kwargs):
 beta_0 = np.zeros((K,))
 
 # Estimate the model
-res_logit = estimate_logit(q_logit, beta_0, a, x)
+res_logit = estimate_logit(q_logit, beta_0, y, x)
 
 # %%
 logit_beta = res_logit['beta']
-pd.DataFrame(logit_beta.reshape(1,len(logit_beta)))
+logit_se_hat = res_logit['se']
+pd.DataFrame({'beta' : logit_beta, 'se': logit_se_hat}, index=x_vars).rename_axis(columns='variables')
 
 # %% [markdown]
 # ### We then compute the corresponding Logit choice probabilities
@@ -259,7 +300,7 @@ def logit_ccp(Beta, x, MAXRESCALE:bool=True):
 
 # %%
 logit_q = logit_ccp(logit_beta, x)
-pd.DataFrame(logit_q)
+pd.DataFrame(logit_q).rename_axis(index='individuals', columns='products')
 
 # %% [markdown]
 # #### Logit elasticities
@@ -300,7 +341,7 @@ def logit_elasticity(q, Beta, char_number):
 
 # %%
 epsilon_logit = logit_elasticity(logit_q, logit_beta, 0)
-pd.DataFrame(epsilon_logit[0,:,:])
+pd.DataFrame(epsilon_logit[0,:,:]).rename_axis(index = 'Elasticity of products', columns='Elasticity wrt. products')
 
 # %% [markdown]
 # In the above example for individual $i=0$, the $j\ell$'th entry corresponds to the elasticity of the choice probability of product $j$ with respect to the price-to-log-income (i.e. the $0$'th characteristic) of product $\ell$ for $j, \ell \in \{0,1, \ldots ,  5\}$. Note that the diagonal entries are negative, indicating that all products are normal, and that the cross-elasticities (i.e. $j \neq \ell$) with respect to any product $\ell$ are equal for all $j \neq \ell$. Our example thus validates the IIA property of the logit model. 
@@ -366,7 +407,7 @@ def logit_diversion_ratio(q, Beta):
 
 # %%
 DR_logit_hat = logit_diversion_ratio(logit_q, logit_beta)
-pd.DataFrame(DR_logit_hat[0,:,:])
+pd.DataFrame(DR_logit_hat[0,:,:]).rename_axis(index = 'Div. ratio of products', columns='Div. ratio wrt. products')
 
 # %%
 own_DR_logit = {j : (DR_logit_hat.reshape((N, J**2))[:,j]).flatten() for j in np.arange(J**2)} # Finds j'th entry in each of the elasticity matrices of individuals i.  
