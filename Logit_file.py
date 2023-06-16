@@ -12,6 +12,7 @@ import pandas as pd
 import os
 from numpy import linalg as la
 from scipy import optimize
+from scipy.stats import t
 from IPython import display
 from matplotlib import pyplot as plt
 import itertools as iter
@@ -207,6 +208,20 @@ def logit_se(theta, y, x):
     return SE
 
 # %%
+def logit_t_p(theta, y, x, theta_hypothesis = 0):
+    ''' 
+    '''
+
+    N,J,K = x.shape
+
+    SE = logit_se(theta, y, x)
+    T = np.abs(theta - theta_hypothesis) / SE
+    p = t.sf(T, df = N-1)
+
+    return T,p
+    
+
+# %%
 def q_logit(Beta, y, x):
     
     '''
@@ -240,11 +255,14 @@ def estimate_logit(q, Beta0, y, x, options = {'disp': True}, **kwargs):
     # call optimizer
     result = optimize.minimize(Q, Beta0.tolist(), options=options, **kwargs)
     pars = result.x
+    t,p = logit_t_p(pars, y, x)
 
     # collect output in a dict 
     res = {
         'beta': pars, # vector of estimated parameters
         'se': logit_se(pars, y, x),
+        't': t,
+        'p': p,
         'success':  result.success, # bool, whether convergence was succesful 
         'nit':      result.nit, # no. algorithm iterations 
         'nfev':     result.nfev, # no. function evaluations 
@@ -263,9 +281,15 @@ beta_0 = np.zeros((K,))
 res_logit = estimate_logit(q_logit, beta_0, y, x)
 
 # %%
-logit_beta = res_logit['beta']
-logit_se_hat = res_logit['se']
-pd.DataFrame({'beta' : logit_beta, 'se': logit_se_hat}, index=x_vars).rename_axis(columns='variables')
+logit_beta = np.round(res_logit['beta'], decimals=3)
+logit_p = res_logit['p']
+pd.DataFrame({'beta' : [str(logit_beta[i]) + '***' if logit_p[i] < 0.01 else str(logit_beta[i]) + '**' if logit_p[i] < 0.05 else str(logit_beta[i]) + '*' if logit_p[i] < 0.1 else str(logit_beta[i]) for i in range(len(logit_beta))], 
+              'se': res_logit['se'], 
+              't (beta = 0)' : res_logit['t'], 
+              'p' : res_logit['p']}, index=x_vars).rename_axis(columns='variables')
+
+# %% [markdown]
+# Here '$***$', '$**$', and '$*$' indicates that we can reject the hypothesis $\beta=0$ at levels of significance $\alpha = 0.01, 0.05, 0.1$, respectively.
 
 # %% [markdown]
 # ### We then compute the corresponding Logit choice probabilities
