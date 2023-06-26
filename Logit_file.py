@@ -113,7 +113,7 @@ x = dat[x_vars].values.reshape((N,J,K))
 # We estimate a logit model on the data using maximum likelihood. In doing this we will see our first use of the numpy function 'einsum()' which quickly and easily computes matrix products, outer products, transposes, etc. 
 
 # %%
-def util(Beta, x):
+def util(Beta, x, is_dict = False):
     '''
     This function finds the deterministic utilities u = X*Beta.
     
@@ -125,15 +125,18 @@ def util(Beta, x):
         u: (N,J) matrix of deterministic utilities
     '''
 
-    assert Beta.ndim == 1
-    assert x.ndim == 3
-
-    u = np.einsum('njk,k->nj', x, Beta) # is the same as x @ Beta
+    if is_dict == False:
+        u = np.einsum('njk,k->nj', x, Beta) # is the same as x @ Beta
+    else:
+        T = len(x.keys())
+        u = {}
+        for t in np.arange(T):
+            u[t] = np.dot(x[t], Beta)
 
     return u
 
 # %%
-def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
+def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True, is_dict = False):
     '''
     This function calculates the likelihood contributions of a Logit model
 
@@ -145,24 +148,34 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
     Returns
         ll_i: (N,) vector of loglikelihood contributions for a Logit
     '''
-    assert Beta.ndim == 1 
-    N,J,K = x.shape 
 
     # deterministic utility 
-    v = util(Beta, x)
+    v = util(Beta, x, is_dict)
 
-    if MAXRESCALE: 
-        # subtract the row-max from each observation
-        v -= v.max(axis=1, keepdims=True)  # keepdims maintains the second dimension, (N,1), so broadcasting is successful
+    if is_dict == False:
+        if MAXRESCALE: 
+            # subtract the row-max from each observation
+            v -= v.max(axis=1, keepdims=True)  # keepdims maintains the second dimension, (N,1), so broadcasting is successful
 
-    # denominator 
-    denom = np.exp(v).sum(axis=1) # NOT keepdims! becomes (N,)
+        # denominator 
+        denom = np.exp(v).sum(axis=1) # NOT keepdims! becomes (N,)
 
-    # utility at chosen alternative for each individual i
-    v_i = np.einsum('nj,nj->n', y, v) # Becomes (N,)
+        # utility at chosen alternative for each individual i
+        v_i = np.einsum('nj,nj->n', y, v) # Becomes (N,)
 
-    # likelihood 
-    ll_i = v_i - np.log(denom) # difference between two 1-dimensional arrays 
+        # likelihood 
+        ll_i = v_i - np.log(denom) # difference between two 1-dimensional arrays
+    else:
+        T = len(x.keys())
+        ll_i = np.empty((T,))
+
+        if MAXRESCALE:
+            v = {t: v[t] - v[t].max(keepdims=True) for t in np.arange(T)}
+        
+        for t in np.arange(T):
+            denom = np.exp(v[t]).sum()
+            v_i = np.dot(y[t], v[t])
+            ll_i[t] = v_i - np.log(denom)
 
     return ll_i
 
@@ -171,7 +184,7 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
 # The derivative of the likelihood function $\ell_i (\theta)$ wrt. parameters in the logit model if individual $i$ chose product $j$ is given by:
 # 
 # $$
-# \nabla_\theta \ell_i(\theta) = X_j - \frac{\sum_\ell e^{\theta' X_\ell}X_\ell}{\sum_\ell e^{\theta' X_\ell}}
+# \nabla_\theta \ell_i(\theta) = X_j - \frac{\sum_\ell e^{ X_\ell \theta }X_\ell}{\sum_\ell e^{X_\ell \theta }}
 # $$
 # 
 # We may then consistently estimate the covariance matrix in the logit model by plugging the MLE $\hat \theta$ into the formula:
@@ -181,40 +194,51 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
 # $$
 
 # %%
-def logit_score(theta, y, x):
+def logit_score(theta, y, x, is_dict = False):
     ''' 
     '''
 
-    N,J,K = x.shape
+    if is_dict == False:
+        N,J,K = x.shape
 
-    numer_term = np.einsum('nj,njk->njk', np.exp(np.einsum('k,njk->nj', theta, x)), x)
-    numer = np.einsum('j,njk->nk', np.ones((J,)), numer_term)
-    denom = np.einsum('j,nj->n', np.ones((J,)), np.exp(np.einsum('k,njk->nj', theta, x)))
-    score = np.einsum('nj,njk->nk', y, x - (numer / denom[:,None])[:,None,:])
+        numer_term = np.einsum('nj,njk->njk', np.exp(np.einsum('k,njk->nj', theta, x)), x)
+        numer = np.einsum('j,njk->nk', np.ones((J,)), numer_term)
+        denom = np.einsum('j,nj->n', np.ones((J,)), np.exp(np.einsum('k,njk->nj', theta, x)))
+        score = np.einsum('nj,njk->nk', y, x - (numer / denom[:,None])[:,None,:])
+    else:
+        T = len(x.keys())
+        score = np.empty((T, len(theta)))
+
+        for t in np.arange(T):
+            numer_term = np.multiply(np.exp(np.dot(x[t], theta)), x[t])
+            numer = numer_term.sum()
+            denom = np.exp(np.dot(x[t], theta)).sum()
+            score[t,:] = np.dot(y[t], x[t] - np.divide(numer, denom))
 
     return score
 
 # %%
-def logit_se(theta, y, x):
+def logit_se(theta, y, x, is_dict = False):
     ''' 
     '''
 
-    N,J,K = x.shape
-
-    score = logit_score(theta, y, x)
+    score = logit_score(theta, y, x, is_dict)
     Sigma = np.einsum('nk,nm->km', score, score)
     SE = np.sqrt(np.diag(la.inv(Sigma)))
 
     return SE
 
 # %%
-def logit_t_p(theta, y, x, theta_hypothesis = 0):
+def logit_t_p(theta, y, x, theta_hypothesis = 0, is_dict = False):
     ''' 
     '''
 
-    N,J,K = x.shape
+    if is_dict == False:
+        N,J,K = x.shape
+    else:
+        N = len(x.keys())
 
-    SE = logit_se(theta, y, x)
+    SE = logit_se(theta, y, x, is_dict)
     T = np.abs(theta - theta_hypothesis) / SE
     p = t.sf(T, df = N-1)
 
@@ -222,15 +246,21 @@ def logit_t_p(theta, y, x, theta_hypothesis = 0):
     
 
 # %%
-def q_logit(Beta, y, x):
+def q_logit(Beta, y, x, is_dict = False):
     
     '''
     q: Criterion function, passed to estimate_logit().
     '''
-    return -logit_loglikehood(Beta, y, x)
+    return -logit_loglikehood(Beta, y, x, is_dict)
 
 # %%
-def estimate_logit(q, Beta0, y, x, options = {'disp': True}, **kwargs):
+def q_logit_score(Beta, y, x, is_dict = False):
+    ''' 
+    '''
+    return -logit_score(Beta, y, x, is_dict)
+
+# %%
+def estimate_logit(q, Beta0, y, x, is_dict = False, Analytic_jac:bool = True, options = {'disp': True}, **kwargs):
     ''' 
     Takes a function and returns the minimum, given start values and 
     variables to calculate the residuals.
@@ -250,17 +280,22 @@ def estimate_logit(q, Beta0, y, x, options = {'disp': True}, **kwargs):
     # The objective function is the average of q(), 
     # but Q is only a function of one variable, theta, 
     # which is what minimize() will expect
-    Q = lambda Theta: np.mean(q(Theta, y, x))
+    Q = lambda Theta: np.mean(q(Theta, y, x, is_dict))
+
+    if Analytic_jac == True:
+        Grad = lambda Theta: np.mean(q_logit_score(Theta, y, x, is_dict), axis=0) # Finds the Jacobian of Q. Takes mean of criterion q derivatives along axis=0, i.e. the mean across individuals.
+    else:
+        Grad = None
 
     # call optimizer
-    result = optimize.minimize(Q, Beta0.tolist(), options=options, **kwargs)
+    result = optimize.minimize(Q, Beta0.tolist(), options=options, jac = Grad, **kwargs)
     pars = result.x
-    t,p = logit_t_p(pars, y, x)
+    t,p = logit_t_p(pars, y, x, is_dict)
 
     # collect output in a dict 
     res = {
         'beta': pars, # vector of estimated parameters
-        'se': logit_se(pars, y, x),
+        'se': logit_se(pars, y, x, is_dict),
         't': t,
         'p': p,
         'success':  result.success, # bool, whether convergence was succesful 
