@@ -411,7 +411,7 @@ def logit_elasticity(q, Beta, char_number):
         J = {t: q[t].shape[0] for t in np.arange(T)}
         
         iota_q = {t: np.outer(np.ones(J[t]), q[t]) for t in np.arange(T)}
-        Epsilon = {t: np.multiply(np.eye(J) - iota_q[t], Beta[char_number]) for t in np.arange(T)}
+        Epsilon = {t: np.multiply(np.eye(J[t]) - iota_q[t], Beta[char_number]) for t in np.arange(T)}
 
     return Epsilon
 
