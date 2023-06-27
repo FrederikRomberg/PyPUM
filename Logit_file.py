@@ -213,8 +213,7 @@ def logit_score(theta, y, x):
         score = np.empty((T, len(theta)))
 
         for t in np.arange(T):
-            numer_term = np.multiply(np.exp(np.dot(x[t], theta)), x[t])
-            numer = numer_term.sum()
+            numer = np.dot(np.exp(np.dot(x[t], theta)), x[t])
             denom = np.exp(np.dot(x[t], theta)).sum()
             score[t,:] = np.dot(y[t], x[t] - np.divide(numer, denom))
 
