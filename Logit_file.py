@@ -153,7 +153,7 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
     '''
 
     # deterministic utility 
-    v = util(Beta, x, is_dict)
+    v = util(Beta, x)
 
     if isinstance(x, (np.ndarray)):
         if MAXRESCALE: 
