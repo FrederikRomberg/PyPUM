@@ -340,19 +340,31 @@ def logit_ccp(Beta, x, MAXRESCALE:bool=True):
     Returns
         ccp: (N,J) matrix of probabilities 
     '''
-    
     # deterministic utility 
-    v = util(Beta, x) # (N,J) 
+    v = util(Beta, x) # (N,J)
 
-    if MAXRESCALE: 
-        # subtract the row-max from each observation
-        v -= v.max(axis=1, keepdims=True)  # keepdims maintains the second dimension, (N,1), so broadcasting is successful
-    
-    # denominator 
-    denom = np.exp(v).sum(axis=1, keepdims=True) # (N,1)
-    
-    # Conditional choice probabilites
-    ccp = np.exp(v) / denom
+    if isinstance(x, (np.ndarray)): 
+        if MAXRESCALE: 
+            # subtract the row-max from each observation
+            v -= v.max(axis=1, keepdims=True)  # keepdims maintains the second dimension, (N,1), so broadcasting is successful
+        
+        # denominator 
+        denom = np.exp(v).sum(axis=1, keepdims=True) # (N,1)
+        
+        # Conditional choice probabilites
+        ccp = np.exp(v) / denom
+    else:
+        T = len(x.keys())
+        
+        if MAXRESCALE:
+            v = {t: v[t] - v[t].max(keepdims=True) for t in np.arange(T)}
+        
+        # denominator
+        denom = {t: v[t].sum() for t in np.arange(T)}
+
+        # Conditional choice probabilites
+        ccp = {t: np.divide(v[t], denom[t]) for t in np.arange(T)}
+
     
     return ccp
 
@@ -386,14 +398,20 @@ def logit_elasticity(q, Beta, char_number):
     Output:
         Epsilon: a (N,J,J) matrix of logit elasticities of choice probabilities wrt. the charateristic k
     '''
+    if isinstance(q, (np.ndarray)):
+        assert q.ndim == 2
+        assert Beta.ndim == 1
 
-    assert q.ndim == 2
-    assert Beta.ndim == 1
+        N,J = q.shape
 
-    N,J = q.shape
-
-    iota_q = np.einsum('j,ni->nji', np.ones((J,)), q)
-    Epsilon = (np.eye(J) - iota_q)*Beta[char_number]
+        iota_q = np.einsum('j,ni->nji', np.ones((J,)), q)
+        Epsilon = (np.eye(J) - iota_q)*Beta[char_number]
+    else:
+        T = len(q.keys())
+        J = {t: q[t].shape[0] for t in np.arange(T)}
+        
+        iota_q = {t: np.outer(np.ones(J[t]), q[t]) for t in np.arange(T)}
+        Epsilon = {t: np.multiply(np.eye(J) - iota_q[t], Beta[char_number]) for t in np.arange(T)}
 
     return Epsilon
 
@@ -450,17 +468,26 @@ def logit_diversion_ratio(q, Beta):
         DR: a (N,J,J) matrix of logit diversion ratios of choice probabilities wrt. the charateristic k
     '''
 
-    assert q.ndim == 2
-    assert Beta.ndim == 1
+    if isinstance(q, (np.ndarray)):
+        assert q.ndim == 2
+        assert Beta.ndim == 1
 
-    N,J = q.shape
+        N,J = q.shape
+        diag_q = q[:,:,None] * np.eye(J,J)[None, :, :]
+        qqT = np.einsum('nj,nk->njk', q, q)
+        Grad = diag_q - qqT
+        diag_Grad_mat = Grad * np.eye(J,J)[None, :, :]
+        diag_Grad_vec = np.einsum('njk,k->nj', diag_Grad_mat, np.ones((J,)))
+        DR = -100 * np.einsum('njk,nj->njk', Grad, 1./diag_Grad_vec)
+    else:
+        T = len(q.keys())
+        J = {t: q[t].shape[0] for t in np.arange(T)}
 
-    diag_q = q[:,:,None] * np.eye(J,J)[None, :, :]
-    qqT = np.einsum('nj,nk->njk', q, q)
-    Grad = diag_q - qqT
-    diag_Grad_mat = Grad * np.eye(J,J)[None, :, :]
-    diag_Grad_vec = np.einsum('njk,k->nj', diag_Grad_mat, np.ones((J,)))
-    DR = -100 * np.einsum('njk,nj->njk', Grad, 1./diag_Grad_vec)
+        diag_q = {t: np.multiply(np.eye(J[t]), q[t]) for t in np.arange(T)}
+        qqT = {t: np.outer(q[t], q[t]) for t in np.arange(T)}
+        Grad = {t: diag_q[t] - qqT[t] for t in np.arange(T)}
+        diag_Grad = {t: np.multiply(Grad[t], np.eye(J[t])) for t in np.arange(T)}
+        DR = {t: np.multiply(-100, np.dot(Grad[t], la.inv(diag_Grad[t]))) for t in np.arange(T)}
 
     return DR
     
