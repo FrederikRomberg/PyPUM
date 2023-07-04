@@ -308,14 +308,6 @@ def estimate_logit(q, Beta0, y, x, N, Analytic_jac:bool = True, options = {'disp
 # %% [markdown]
 # Estimating a Logit model via maximum likelihood with an initial guess of parameters $\hat \beta^0 = 0$ yields estimated parameters $\hat \beta^{\text{logit}}$ given as...
 
-# %%
-logit_beta = np.round(res_logit['beta'], decimals=3)
-logit_p = res_logit['p']
-pd.DataFrame({'beta' : [str(logit_beta[i]) + '***' if logit_p[i] < 0.01 else str(logit_beta[i]) + '**' if logit_p[i] < 0.05 else str(logit_beta[i]) + '*' if logit_p[i] < 0.1 else str(logit_beta[i]) for i in range(len(logit_beta))], 
-              'se': res_logit['se'], 
-              't (beta = 0)' : res_logit['t'], 
-              'p' : res_logit['p']}, index=x_vars).rename_axis(columns='variables')
-
 # %% [markdown]
 # Here '$***$', '$**$', and '$*$' indicates that we can reject the hypothesis $\beta=0$ at levels of significance $\alpha = 0.01, 0.05, 0.1$, respectively.
 
@@ -362,9 +354,9 @@ def logit_ccp(Beta, x, MAXRESCALE:bool=True):
 # %% [markdown]
 # Using our estimates $\hat \beta^{\text{logit}}$, the choice probabilities $\hat q_i^{logit}$ of products $\{0,1, \ldots , 5\}$ for individuals $i=0,1,\ldots , 4653$ thus becomes:
 
-# %%
-logit_q = logit_ccp(logit_beta, x)
-pd.DataFrame(logit_q).rename_axis(index='individuals', columns='products')
+# %% [markdown]
+# logit_q = logit_ccp(logit_beta, x)
+# pd.DataFrame(logit_q).rename_axis(index='individuals', columns='products')
 
 # %% [markdown]
 # #### Logit elasticities
@@ -415,24 +407,6 @@ def logit_elasticity(q, Beta, char_number):
 
 # %% [markdown]
 # In the above example for individual $i=0$, the $j\ell$'th entry corresponds to the elasticity of the choice probability of product $j$ with respect to the price-to-log-income (i.e. the $0$'th characteristic) of product $\ell$ for $j, \ell \in \{0,1, \ldots ,  5\}$. Note that the diagonal entries are negative, indicating that all products are normal, and that the cross-elasticities (i.e. $j \neq \ell$) with respect to any product $\ell$ are equal for all $j \neq \ell$. Our example thus validates the IIA property of the logit model. 
-
-# %%
-own_elasticities_logit = {j : (epsilon_logit.reshape((N, J**2))[:,j]).flatten() for j in np.arange(J**2)} # Finds j'th entry in each of the elasticity matrices of individuals i.  
-
-j_pairs = iter.product(np.arange(J), np.arange(J))
-num_bins = 25
-
-fig, axes = plt.subplots(J, J)
-
-for p, j in zip(j_pairs, np.arange(J**2)):
-    axes[p].hist(own_elasticities_logit[j], num_bins)
-    axes[p].vlines(0, 0, 1500, 'red', 'dotted')
-    axes[p].get_xaxis().set_visible(False)
-    axes[p].get_yaxis().set_visible(False)
-
-fig.suptitle('Logit price-to-log-income elasticities')
-
-plt.show()
 
 # %% [markdown]
 # #### Diversion Ratios for Logit
