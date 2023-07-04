@@ -309,12 +309,6 @@ def estimate_logit(q, Beta0, y, x, N, Analytic_jac:bool = True, options = {'disp
 # Estimating a Logit model via maximum likelihood with an initial guess of parameters $\hat \beta^0 = 0$ yields estimated parameters $\hat \beta^{\text{logit}}$ given as...
 
 # %%
-beta_0 = np.zeros((K,))
-
-# Estimate the model
-res_logit = estimate_logit(q_logit, beta_0, y, x)
-
-# %%
 logit_beta = np.round(res_logit['beta'], decimals=3)
 logit_p = res_logit['p']
 pd.DataFrame({'beta' : [str(logit_beta[i]) + '***' if logit_p[i] < 0.01 else str(logit_beta[i]) + '**' if logit_p[i] < 0.05 else str(logit_beta[i]) + '*' if logit_p[i] < 0.1 else str(logit_beta[i]) for i in range(len(logit_beta))], 
@@ -357,10 +351,10 @@ def logit_ccp(Beta, x, MAXRESCALE:bool=True):
             v = {t: v[t] - v[t].max(keepdims=True) for t in np.arange(T)}
         
         # denominator
-        denom = {t: v[t].sum() for t in np.arange(T)}
+        denom = {t: np.exp(v[t]).sum() for t in np.arange(T)}
 
         # Conditional choice probabilites
-        ccp = {t: np.divide(v[t], denom[t]) for t in np.arange(T)}
+        ccp = {t: v[t] - np.log(denom[t]) for t in np.arange(T)}
 
     
     return ccp
@@ -415,9 +409,9 @@ def logit_elasticity(q, Beta, char_number):
 # %% [markdown]
 # Implemented on our datset, we thus find the elasticities as follows...
 
-# %%
-epsilon_logit = logit_elasticity(logit_q, logit_beta, 0)
-pd.DataFrame(epsilon_logit[0,:,:]).rename_axis(index = 'Elasticity of products', columns='Elasticity wrt. products')
+# %% [markdown]
+# epsilon_logit = logit_elasticity(logit_q, logit_beta, 0)
+# pd.DataFrame(epsilon_logit[0,:,:]).rename_axis(index = 'Elasticity of products', columns='Elasticity wrt. products')
 
 # %% [markdown]
 # In the above example for individual $i=0$, the $j\ell$'th entry corresponds to the elasticity of the choice probability of product $j$ with respect to the price-to-log-income (i.e. the $0$'th characteristic) of product $\ell$ for $j, \ell \in \{0,1, \ldots ,  5\}$. Note that the diagonal entries are negative, indicating that all products are normal, and that the cross-elasticities (i.e. $j \neq \ell$) with respect to any product $\ell$ are equal for all $j \neq \ell$. Our example thus validates the IIA property of the logit model. 
@@ -490,25 +484,25 @@ def logit_diversion_ratio(q, Beta):
     
 
 
-# %%
-DR_logit_hat = logit_diversion_ratio(logit_q, logit_beta)
-pd.DataFrame(DR_logit_hat[0,:,:]).rename_axis(index = 'Div. ratio of products', columns='Div. ratio wrt. products')
+# %% [markdown]
+# DR_logit_hat = logit_diversion_ratio(logit_q, logit_beta)
+# pd.DataFrame(DR_logit_hat[0,:,:]).rename_axis(index = 'Div. ratio of products', columns='Div. ratio wrt. products')
 
-# %%
-own_DR_logit = {j : (DR_logit_hat.reshape((N, J**2))[:,j]).flatten() for j in np.arange(J**2)} # Finds j'th entry in each of the elasticity matrices of individuals i.  
-
-j_pairs = iter.product(np.arange(J), np.arange(J))
-num_bins = 25
-
-fig, axes = plt.subplots(J, J)
-
-for p, j in zip(j_pairs, np.arange(J**2)):
-    axes[p].hist(own_DR_logit[j], num_bins)
-    axes[p].vlines(0, 0, 1500, 'red', 'dotted')
-    axes[p].get_xaxis().set_visible(False)
-    axes[p].get_yaxis().set_visible(False)
-
-fig.suptitle('Logit price-to-log-income diversion ratios')
-plt.show()
+# %% [markdown]
+# own_DR_logit = {j : (DR_logit_hat.reshape((N, J**2))[:,j]).flatten() for j in np.arange(J**2)} # Finds j'th entry in each of the elasticity matrices of individuals i.  
+# 
+# j_pairs = iter.product(np.arange(J), np.arange(J))
+# num_bins = 25
+# 
+# fig, axes = plt.subplots(J, J)
+# 
+# for p, j in zip(j_pairs, np.arange(J**2)):
+#     axes[p].hist(own_DR_logit[j], num_bins)
+#     axes[p].vlines(0, 0, 1500, 'red', 'dotted')
+#     axes[p].get_xaxis().set_visible(False)
+#     axes[p].get_yaxis().set_visible(False)
+# 
+# fig.suptitle('Logit price-to-log-income diversion ratios')
+# plt.show()
 
 
