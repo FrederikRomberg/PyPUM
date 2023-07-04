@@ -228,7 +228,7 @@ def logit_se(theta, y, x, N):
     return SE
 
 # %%
-def logit_t_p(theta, y, x, theta_hypothesis = 0):
+def logit_t_p(theta, y, x, N, theta_hypothesis = 0):
     ''' 
     '''
 
@@ -237,7 +237,7 @@ def logit_t_p(theta, y, x, theta_hypothesis = 0):
     else:
         N = len(x.keys())
 
-    SE = logit_se(theta, y, x)
+    SE = logit_se(theta, y, x, N)
     T = np.abs(theta - theta_hypothesis) / SE
     p = t.sf(T, df = N-1)
 
@@ -289,7 +289,7 @@ def estimate_logit(q, Beta0, y, x, N, Analytic_jac:bool = True, options = {'disp
     # call optimizer
     result = optimize.minimize(Q, Beta0.tolist(), options=options, jac = Grad, **kwargs)
     pars = result.x
-    t,p = logit_t_p(pars, y, x)
+    t,p = logit_t_p(pars, y, x, N)
 
     # collect output in a dict 
     res = {
