@@ -233,13 +233,13 @@ def logit_t_p(theta, y, x, N, theta_hypothesis = 0):
     '''
 
     if isinstance(x, (np.ndarray)):
-        N,J,K = x.shape
+        D,J,K = x.shape
     else:
-        N = len(x.keys())
+        D = len(x.keys())
 
     SE = logit_se(theta, y, x, N)
     T = np.abs(theta - theta_hypothesis) / SE
-    p = t.sf(T, df = N-1)
+    p = t.sf(T, df = D-1)
 
     return T,p
     
