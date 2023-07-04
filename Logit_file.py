@@ -107,9 +107,6 @@ K = len(x_vars)
 y = pd.get_dummies(dat['y'].values.reshape((N,J))[:,0]).to_numpy() # Convert y to an (N,J) array as the onehot encoding. All values are equal along axis=1 in dataframe. Becomes an (N,) array i.e. it is a vector.
 x = dat[x_vars].values.reshape((N,J,K))
 
-# %%
-isinstance(x, (np.ndarray))
-
 # %% [markdown]
 # ## Estimating the logit model
 # 
@@ -220,13 +217,13 @@ def logit_score(theta, y, x):
     return score
 
 # %%
-def logit_se(theta, y, x):
+def logit_se(theta, y, x, N):
     ''' 
     '''
 
     score = logit_score(theta, y, x)
     Sigma = np.einsum('nk,nm->km', score, score)
-    SE = np.sqrt(np.diag(la.inv(Sigma)))
+    SE = np.sqrt(np.diag(la.inv(Sigma))) / N 
 
     return SE
 
@@ -262,7 +259,7 @@ def q_logit_score(Beta, y, x):
     return -logit_score(Beta, y, x)
 
 # %%
-def estimate_logit(q, Beta0, y, x, Analytic_jac:bool = True, options = {'disp': True}, **kwargs):
+def estimate_logit(q, Beta0, y, x, N, Analytic_jac:bool = True, options = {'disp': True}, **kwargs):
     ''' 
     Takes a function and returns the minimum, given start values and 
     variables to calculate the residuals.
@@ -297,7 +294,7 @@ def estimate_logit(q, Beta0, y, x, Analytic_jac:bool = True, options = {'disp': 
     # collect output in a dict 
     res = {
         'beta': pars, # vector of estimated parameters
-        'se': logit_se(pars, y, x),
+        'se': logit_se(pars, y, x, N),
         't': t,
         'p': p,
         'success':  result.success, # bool, whether convergence was succesful 
