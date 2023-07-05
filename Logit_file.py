@@ -346,7 +346,7 @@ def logit_ccp(Beta, x, MAXRESCALE:bool=True):
         denom = {t: np.exp(v[t]).sum() for t in np.arange(T)}
 
         # Conditional choice probabilites
-        ccp = {t: v[t] - np.log(denom[t]) for t in np.arange(T)}
+        ccp = {t: np.divide(np.exp(v[t]), denom[t]) for t in np.arange(T)}
 
     
     return ccp
