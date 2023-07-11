@@ -184,7 +184,7 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
 # The derivative of the likelihood function $\ell_i (\theta)$ wrt. parameters in the logit model if individual $i$ chose product $j$ is given by:
 # 
 # $$
-# \nabla_\theta \ell_i(\theta) = X_j - \frac{\sum_\ell e^{ X_\ell \theta }X_\ell}{\sum_\ell e^{X_\ell \theta }}
+# \nabla_\theta \ell_i(\theta) =y_i'\left(X - \left(\iota \circ \frac{\sum_\ell e^{ X_\ell \theta }X_\ell}{\sum_\ell e^{X_\ell \theta }}\right)\right)  = X_j - \frac{\sum_\ell e^{ X_\ell \theta }X_\ell}{\sum_\ell e^{X_\ell \theta }}
 # $$
 # 
 # We may then consistently estimate the covariance matrix in the logit model by plugging the MLE $\hat \theta$ into the formula:
@@ -289,14 +289,10 @@ def estimate_logit(q, Beta0, y, x, N, Analytic_jac:bool = True, options = {'disp
     # call optimizer
     result = optimize.minimize(Q, Beta0.tolist(), options=options, jac = Grad, **kwargs)
     pars = result.x
-    t,p = logit_t_p(pars, y, x, N)
 
     # collect output in a dict 
     res = {
         'beta': pars, # vector of estimated parameters
-        'se': logit_se(pars, y, x, N),
-        't': t,
-        'p': p,
         'success':  result.success, # bool, whether convergence was succesful 
         'nit':      result.nit, # no. algorithm iterations 
         'nfev':     result.nfev, # no. function evaluations 
