@@ -125,10 +125,13 @@ def util(Beta, x):
         u: (N,J) matrix of deterministic utilities
     '''
 
-    assert Beta.ndim == 1
-    assert x.ndim == 3
-
-    u = np.einsum('njk,k->nj', x, Beta) # is the same as x @ Beta
+    if isinstance(x, (np.ndarray)):
+        u = np.einsum('njk,k->nj', x, Beta) # is the same as x @ Beta
+    else:
+        T = len(x.keys())
+        u = {}
+        for t in np.arange(T):
+            u[t] = np.dot(x[t], Beta)
 
     return u
 
@@ -145,24 +148,34 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
     Returns
         ll_i: (N,) vector of loglikelihood contributions for a Logit
     '''
-    assert Beta.ndim == 1 
-    N,J,K = x.shape 
 
     # deterministic utility 
     v = util(Beta, x)
 
-    if MAXRESCALE: 
-        # subtract the row-max from each observation
-        v -= v.max(axis=1, keepdims=True)  # keepdims maintains the second dimension, (N,1), so broadcasting is successful
+    if isinstance(x, (np.ndarray)):
+        if MAXRESCALE: 
+            # subtract the row-max from each observation
+            v -= v.max(axis=1, keepdims=True)  # keepdims maintains the second dimension, (N,1), so broadcasting is successful
 
-    # denominator 
-    denom = np.exp(v).sum(axis=1) # NOT keepdims! becomes (N,)
+        # denominator 
+        denom = np.exp(v).sum(axis=1) # NOT keepdims! becomes (N,)
 
-    # utility at chosen alternative for each individual i
-    v_i = np.einsum('nj,nj->n', y, v) # Becomes (N,)
+        # utility at chosen alternative for each individual i
+        v_i = np.einsum('nj,nj->n', y, v) # Becomes (N,)
 
-    # likelihood 
-    ll_i = v_i - np.log(denom) # difference between two 1-dimensional arrays 
+        # likelihood 
+        ll_i = v_i - np.log(denom) # difference between two 1-dimensional arrays
+    else:
+        T = len(x.keys())
+        ll_i = np.empty((T,))
+
+        if MAXRESCALE:
+            v = {t: v[t] - v[t].max(keepdims=True) for t in np.arange(T)}
+        
+        for t in np.arange(T):
+            denom = np.exp(v[t]).sum()
+            v_i = np.dot(y[t], v[t])
+            ll_i[t] = v_i - np.log(denom)
 
     return ll_i
 
@@ -171,7 +184,7 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
 # The derivative of the likelihood function $\ell_i (\theta)$ wrt. parameters in the logit model if individual $i$ chose product $j$ is given by:
 # 
 # $$
-# \nabla_\theta \ell_i(\theta) = X_j - \frac{\sum_\ell e^{\theta' X_\ell}X_\ell}{\sum_\ell e^{\theta' X_\ell}}
+# \nabla_\theta \ell_i(\theta) =y_i'\left(X - \left(\iota \circ \frac{\sum_\ell e^{ X_\ell \theta }X_\ell}{\sum_\ell e^{X_\ell \theta }}\right)\right)  = X_j - \frac{\sum_\ell e^{ X_\ell \theta }X_\ell}{\sum_\ell e^{X_\ell \theta }}
 # $$
 # 
 # We may then consistently estimate the covariance matrix in the logit model by plugging the MLE $\hat \theta$ into the formula:
@@ -185,38 +198,48 @@ def logit_score(theta, y, x):
     ''' 
     '''
 
-    N,J,K = x.shape
+    if isinstance(x, (np.ndarray)):
+        N,J,K = x.shape
 
-    numer_term = np.einsum('nj,njk->njk', np.exp(np.einsum('k,njk->nj', theta, x)), x)
-    numer = np.einsum('j,njk->nk', np.ones((J,)), numer_term)
-    denom = np.einsum('j,nj->n', np.ones((J,)), np.exp(np.einsum('k,njk->nj', theta, x)))
-    score = np.einsum('nj,njk->nk', y, x - (numer / denom[:,None])[:,None,:])
+        numer_term = np.einsum('nj,njk->njk', np.exp(np.einsum('k,njk->nj', theta, x)), x)
+        numer = np.einsum('j,njk->nk', np.ones((J,)), numer_term)
+        denom = np.einsum('j,nj->n', np.ones((J,)), np.exp(np.einsum('k,njk->nj', theta, x)))
+        score = np.einsum('nj,njk->nk', y, x - (numer / denom[:,None])[:,None,:])
+    else:
+        T = len(x.keys())
+        score = np.empty((T, len(theta)))
+
+        for t in np.arange(T):
+            numer = np.dot(np.exp(np.dot(x[t], theta)), x[t])
+            denom = np.exp(np.dot(x[t], theta)).sum()
+            score[t,:] = np.dot(y[t], x[t] - np.divide(numer, denom))
 
     return score
 
 # %%
-def logit_se(theta, y, x):
+def logit_se(theta, y, x, N):
     ''' 
     '''
 
-    N,J,K = x.shape
-
     score = logit_score(theta, y, x)
     Sigma = np.einsum('nk,nm->km', score, score)
-    SE = np.sqrt(np.diag(la.inv(Sigma)))
+    SE = np.sqrt(np.diag(la.inv(Sigma))) / N 
 
     return SE
 
 # %%
-def logit_t_p(theta, y, x, theta_hypothesis = 0):
+def logit_t_p(theta, y, x, N, theta_hypothesis = 0):
     ''' 
     '''
 
-    N,J,K = x.shape
+    if isinstance(x, (np.ndarray)):
+        D,J,K = x.shape
+    else:
+        D = len(x.keys())
 
-    SE = logit_se(theta, y, x)
+    SE = logit_se(theta, y, x, N)
     T = np.abs(theta - theta_hypothesis) / SE
-    p = t.sf(T, df = N-1)
+    p = t.sf(T, df = D-1)
 
     return T,p
     
@@ -230,7 +253,13 @@ def q_logit(Beta, y, x):
     return -logit_loglikehood(Beta, y, x)
 
 # %%
-def estimate_logit(q, Beta0, y, x, options = {'disp': True}, **kwargs):
+def q_logit_score(Beta, y, x):
+    ''' 
+    '''
+    return -logit_score(Beta, y, x)
+
+# %%
+def estimate_logit(q, Beta0, y, x, N, Analytic_jac:bool = True, options = {'disp': True}, **kwargs):
     ''' 
     Takes a function and returns the minimum, given start values and 
     variables to calculate the residuals.
@@ -252,17 +281,18 @@ def estimate_logit(q, Beta0, y, x, options = {'disp': True}, **kwargs):
     # which is what minimize() will expect
     Q = lambda Theta: np.mean(q(Theta, y, x))
 
+    if Analytic_jac == True:
+        Grad = lambda Theta: np.mean(q_logit_score(Theta, y, x), axis=0) # Finds the Jacobian of Q. Takes mean of criterion q derivatives along axis=0, i.e. the mean across individuals.
+    else:
+        Grad = None
+
     # call optimizer
-    result = optimize.minimize(Q, Beta0.tolist(), options=options, **kwargs)
+    result = optimize.minimize(Q, Beta0.tolist(), options=options, jac = Grad, **kwargs)
     pars = result.x
-    t,p = logit_t_p(pars, y, x)
 
     # collect output in a dict 
     res = {
         'beta': pars, # vector of estimated parameters
-        'se': logit_se(pars, y, x),
-        't': t,
-        'p': p,
         'success':  result.success, # bool, whether convergence was succesful 
         'nit':      result.nit, # no. algorithm iterations 
         'nfev':     result.nfev, # no. function evaluations 
@@ -273,20 +303,6 @@ def estimate_logit(q, Beta0, y, x, options = {'disp': True}, **kwargs):
 
 # %% [markdown]
 # Estimating a Logit model via maximum likelihood with an initial guess of parameters $\hat \beta^0 = 0$ yields estimated parameters $\hat \beta^{\text{logit}}$ given as...
-
-# %%
-beta_0 = np.zeros((K,))
-
-# Estimate the model
-res_logit = estimate_logit(q_logit, beta_0, y, x)
-
-# %%
-logit_beta = np.round(res_logit['beta'], decimals=3)
-logit_p = res_logit['p']
-pd.DataFrame({'beta' : [str(logit_beta[i]) + '***' if logit_p[i] < 0.01 else str(logit_beta[i]) + '**' if logit_p[i] < 0.05 else str(logit_beta[i]) + '*' if logit_p[i] < 0.1 else str(logit_beta[i]) for i in range(len(logit_beta))], 
-              'se': res_logit['se'], 
-              't (beta = 0)' : res_logit['t'], 
-              'p' : res_logit['p']}, index=x_vars).rename_axis(columns='variables')
 
 # %% [markdown]
 # Here '$***$', '$**$', and '$*$' indicates that we can reject the hypothesis $\beta=0$ at levels of significance $\alpha = 0.01, 0.05, 0.1$, respectively.
@@ -303,28 +319,40 @@ def logit_ccp(Beta, x, MAXRESCALE:bool=True):
     Returns
         ccp: (N,J) matrix of probabilities 
     '''
-    
     # deterministic utility 
-    v = util(Beta, x) # (N,J) 
+    v = util(Beta, x) # (N,J)
 
-    if MAXRESCALE: 
-        # subtract the row-max from each observation
-        v -= v.max(axis=1, keepdims=True)  # keepdims maintains the second dimension, (N,1), so broadcasting is successful
-    
-    # denominator 
-    denom = np.exp(v).sum(axis=1, keepdims=True) # (N,1)
-    
-    # Conditional choice probabilites
-    ccp = np.exp(v) / denom
+    if isinstance(x, (np.ndarray)): 
+        if MAXRESCALE: 
+            # subtract the row-max from each observation
+            v -= v.max(axis=1, keepdims=True)  # keepdims maintains the second dimension, (N,1), so broadcasting is successful
+        
+        # denominator 
+        denom = np.exp(v).sum(axis=1, keepdims=True) # (N,1)
+        
+        # Conditional choice probabilites
+        ccp = np.exp(v) / denom
+    else:
+        T = len(x.keys())
+        
+        if MAXRESCALE:
+            v = {t: v[t] - v[t].max(keepdims=True) for t in np.arange(T)}
+        
+        # denominator
+        denom = {t: np.exp(v[t]).sum() for t in np.arange(T)}
+
+        # Conditional choice probabilites
+        ccp = {t: np.divide(np.exp(v[t]), denom[t]) for t in np.arange(T)}
+
     
     return ccp
 
 # %% [markdown]
 # Using our estimates $\hat \beta^{\text{logit}}$, the choice probabilities $\hat q_i^{logit}$ of products $\{0,1, \ldots , 5\}$ for individuals $i=0,1,\ldots , 4653$ thus becomes:
 
-# %%
-logit_q = logit_ccp(logit_beta, x)
-pd.DataFrame(logit_q).rename_axis(index='individuals', columns='products')
+# %% [markdown]
+# logit_q = logit_ccp(logit_beta, x)
+# pd.DataFrame(logit_q).rename_axis(index='individuals', columns='products')
 
 # %% [markdown]
 # #### Logit elasticities
@@ -349,44 +377,32 @@ def logit_elasticity(q, Beta, char_number):
     Output:
         Epsilon: a (N,J,J) matrix of logit elasticities of choice probabilities wrt. the charateristic k
     '''
+    if isinstance(q, (np.ndarray)):
+        assert q.ndim == 2
+        assert Beta.ndim == 1
 
-    assert q.ndim == 2
-    assert Beta.ndim == 1
+        N,J = q.shape
 
-    N,J = q.shape
-
-    iota_q = np.einsum('j,ni->nji', np.ones((J,)), q)
-    Epsilon = (np.eye(J) - iota_q)*Beta[char_number]
+        iota_q = np.einsum('j,ni->nji', np.ones((J,)), q)
+        Epsilon = (np.eye(J) - iota_q)*Beta[char_number]
+    else:
+        T = len(q.keys())
+        J = {t: q[t].shape[0] for t in np.arange(T)}
+        
+        iota_q = {t: np.outer(np.ones(J[t]), q[t]) for t in np.arange(T)}
+        Epsilon = {t: np.multiply(np.eye(J[t]) - iota_q[t], Beta[char_number]) for t in np.arange(T)}
 
     return Epsilon
 
 # %% [markdown]
 # Implemented on our datset, we thus find the elasticities as follows...
 
-# %%
-epsilon_logit = logit_elasticity(logit_q, logit_beta, 0)
-pd.DataFrame(epsilon_logit[0,:,:]).rename_axis(index = 'Elasticity of products', columns='Elasticity wrt. products')
+# %% [markdown]
+# epsilon_logit = logit_elasticity(logit_q, logit_beta, 0)
+# pd.DataFrame(epsilon_logit[0,:,:]).rename_axis(index = 'Elasticity of products', columns='Elasticity wrt. products')
 
 # %% [markdown]
 # In the above example for individual $i=0$, the $j\ell$'th entry corresponds to the elasticity of the choice probability of product $j$ with respect to the price-to-log-income (i.e. the $0$'th characteristic) of product $\ell$ for $j, \ell \in \{0,1, \ldots ,  5\}$. Note that the diagonal entries are negative, indicating that all products are normal, and that the cross-elasticities (i.e. $j \neq \ell$) with respect to any product $\ell$ are equal for all $j \neq \ell$. Our example thus validates the IIA property of the logit model. 
-
-# %%
-own_elasticities_logit = {j : (epsilon_logit.reshape((N, J**2))[:,j]).flatten() for j in np.arange(J**2)} # Finds j'th entry in each of the elasticity matrices of individuals i.  
-
-j_pairs = iter.product(np.arange(J), np.arange(J))
-num_bins = 25
-
-fig, axes = plt.subplots(J, J)
-
-for p, j in zip(j_pairs, np.arange(J**2)):
-    axes[p].hist(own_elasticities_logit[j], num_bins)
-    axes[p].vlines(0, 0, 1500, 'red', 'dotted')
-    axes[p].get_xaxis().set_visible(False)
-    axes[p].get_yaxis().set_visible(False)
-
-fig.suptitle('Logit price-to-log-income elasticities')
-
-plt.show()
 
 # %% [markdown]
 # #### Diversion Ratios for Logit
@@ -413,41 +429,50 @@ def logit_diversion_ratio(q, Beta):
         DR: a (N,J,J) matrix of logit diversion ratios of choice probabilities wrt. the charateristic k
     '''
 
-    assert q.ndim == 2
-    assert Beta.ndim == 1
+    if isinstance(q, (np.ndarray)):
+        assert q.ndim == 2
+        assert Beta.ndim == 1
 
-    N,J = q.shape
+        N,J = q.shape
+        diag_q = q[:,:,None] * np.eye(J,J)[None, :, :]
+        qqT = np.einsum('nj,nk->njk', q, q)
+        Grad = diag_q - qqT
+        diag_Grad_mat = Grad * np.eye(J,J)[None, :, :]
+        diag_Grad_vec = np.einsum('njk,k->nj', diag_Grad_mat, np.ones((J,)))
+        DR = -100 * np.einsum('njk,nj->njk', Grad, 1./diag_Grad_vec)
+    else:
+        T = len(q.keys())
+        J = {t: q[t].shape[0] for t in np.arange(T)}
 
-    diag_q = q[:,:,None] * np.eye(J,J)[None, :, :]
-    qqT = np.einsum('nj,nk->njk', q, q)
-    Grad = diag_q - qqT
-    diag_Grad_mat = Grad * np.eye(J,J)[None, :, :]
-    diag_Grad_vec = np.einsum('njk,k->nj', diag_Grad_mat, np.ones((J,)))
-    DR = -100 * np.einsum('njk,nj->njk', Grad, 1./diag_Grad_vec)
+        diag_q = {t: np.multiply(np.eye(J[t]), q[t]) for t in np.arange(T)}
+        qqT = {t: np.outer(q[t], q[t]) for t in np.arange(T)}
+        Grad = {t: diag_q[t] - qqT[t] for t in np.arange(T)}
+        diag_Grad = {t: np.multiply(Grad[t], np.eye(J[t])) for t in np.arange(T)}
+        DR = {t: np.multiply(-100, np.dot(Grad[t], la.inv(diag_Grad[t]))) for t in np.arange(T)}
 
     return DR
     
 
 
-# %%
-DR_logit_hat = logit_diversion_ratio(logit_q, logit_beta)
-pd.DataFrame(DR_logit_hat[0,:,:]).rename_axis(index = 'Div. ratio of products', columns='Div. ratio wrt. products')
+# %% [markdown]
+# DR_logit_hat = logit_diversion_ratio(logit_q, logit_beta)
+# pd.DataFrame(DR_logit_hat[0,:,:]).rename_axis(index = 'Div. ratio of products', columns='Div. ratio wrt. products')
 
-# %%
-own_DR_logit = {j : (DR_logit_hat.reshape((N, J**2))[:,j]).flatten() for j in np.arange(J**2)} # Finds j'th entry in each of the elasticity matrices of individuals i.  
-
-j_pairs = iter.product(np.arange(J), np.arange(J))
-num_bins = 25
-
-fig, axes = plt.subplots(J, J)
-
-for p, j in zip(j_pairs, np.arange(J**2)):
-    axes[p].hist(own_DR_logit[j], num_bins)
-    axes[p].vlines(0, 0, 1500, 'red', 'dotted')
-    axes[p].get_xaxis().set_visible(False)
-    axes[p].get_yaxis().set_visible(False)
-
-fig.suptitle('Logit price-to-log-income diversion ratios')
-plt.show()
+# %% [markdown]
+# own_DR_logit = {j : (DR_logit_hat.reshape((N, J**2))[:,j]).flatten() for j in np.arange(J**2)} # Finds j'th entry in each of the elasticity matrices of individuals i.  
+# 
+# j_pairs = iter.product(np.arange(J), np.arange(J))
+# num_bins = 25
+# 
+# fig, axes = plt.subplots(J, J)
+# 
+# for p, j in zip(j_pairs, np.arange(J**2)):
+#     axes[p].hist(own_DR_logit[j], num_bins)
+#     axes[p].vlines(0, 0, 1500, 'red', 'dotted')
+#     axes[p].get_xaxis().set_visible(False)
+#     axes[p].get_yaxis().set_visible(False)
+# 
+# fig.suptitle('Logit price-to-log-income diversion ratios')
+# plt.show()
 
 
