@@ -136,7 +136,7 @@ def util(Beta, x):
     return u
 
 # %%
-def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
+def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True, Agg_data = False, sample_share = None):
     '''
     This function calculates the likelihood contributions of a Logit model
 
@@ -164,7 +164,7 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
         v_i = np.einsum('nj,nj->n', y, v) # Becomes (N,)
 
         # likelihood 
-        ll_i = v_i - np.log(denom) # difference between two 1-dimensional arrays
+        LL = v_i - np.log(denom) # difference between two 1-dimensional arrays
     else:
         T = len(x.keys())
         ll_i = np.empty((T,))
@@ -177,7 +177,12 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
             v_i = np.dot(y[t], v[t])
             ll_i[t] = v_i - np.log(denom)
 
-    return ll_i
+        if Agg_data:
+            LL = np.einsum('n,n->n', sample_share, ll_i)
+        else:
+            LL = ll_i
+
+    return LL
 
 
 # %% [markdown]
@@ -194,7 +199,7 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True):
 # $$
 
 # %%
-def logit_score(theta, y, x):
+def logit_score(theta, y, x, Agg_data = False, sample_share = None):
     ''' 
     '''
 
@@ -207,12 +212,17 @@ def logit_score(theta, y, x):
         score = np.einsum('nj,njk->nk', y, x - (numer / denom[:,None])[:,None,:])
     else:
         T = len(x.keys())
-        score = np.empty((T, len(theta)))
+        yLog_grad = np.empty((T, len(theta)))
 
         for t in np.arange(T):
             numer = np.dot(np.exp(np.dot(x[t], theta)), x[t])
             denom = np.exp(np.dot(x[t], theta)).sum()
-            score[t,:] = np.dot(y[t], x[t] - np.divide(numer, denom))
+            yLog_grad[t,:] = np.dot(y[t], x[t] - np.divide(numer, denom))
+
+        if Agg_data:
+            score = np.einsum('n,nd->nd', sample_share, yLog_grad)
+        else:
+            score = yLog_grad
 
     return score
 
