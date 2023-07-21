@@ -136,7 +136,7 @@ def util(Beta, x):
     return u
 
 # %%
-def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True, Agg_data: bool = True, sample_share = None):
+def logit_loglikehood(Beta, y, x, sample_share, MAXRESCALE: bool = True):
     '''
     This function calculates the likelihood contributions of a Logit model
 
@@ -164,7 +164,8 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True, Agg_data: bool = True
         v_i = np.einsum('nj,nj->n', y, v) # Becomes (N,)
 
         # likelihood 
-        LL = v_i - np.log(denom) # difference between two 1-dimensional arrays
+        LL = np.einsum('n,n->n', sample_share, v_i - np.log(denom)) # difference between two 1-dimensional arrays
+        
     else:
         T = len(x.keys())
         ll_i = np.empty((T,))
@@ -176,11 +177,7 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True, Agg_data: bool = True
             denom = np.exp(v[t]).sum()
             v_i = np.dot(y[t], v[t])
             ll_i[t] = v_i - np.log(denom)
-
-        if Agg_data:
             LL = np.einsum('n,n->n', sample_share, ll_i)
-        else:
-            LL = ll_i
 
     return LL
 
@@ -199,7 +196,7 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True, Agg_data: bool = True
 # $$
 
 # %%
-def logit_score(theta, y, x, Agg_data: bool = True, sample_share = None):
+def logit_score(theta, y, x, sample_share):
     ''' 
     '''
 
@@ -209,7 +206,9 @@ def logit_score(theta, y, x, Agg_data: bool = True, sample_share = None):
         numer_term = np.einsum('nj,njk->njk', np.exp(np.einsum('k,njk->nj', theta, x)), x)
         numer = np.einsum('j,njk->nk', np.ones((J,)), numer_term)
         denom = np.einsum('j,nj->n', np.ones((J,)), np.exp(np.einsum('k,njk->nj', theta, x)))
-        score = np.einsum('nj,njk->nk', y, x - (numer / denom[:,None])[:,None,:])
+        yLog_grad = np.einsum('nj,njk->nk', y, x - (numer / denom[:,None])[:,None,:])
+        score = np.einsum('n,nk->nk', sample_share, yLog_grad)
+        
     else:
         T = len(x.keys())
         yLog_grad = np.empty((T, len(theta)))
@@ -218,11 +217,8 @@ def logit_score(theta, y, x, Agg_data: bool = True, sample_share = None):
             numer = np.dot(np.exp(np.dot(x[t], theta)), x[t])
             denom = np.exp(np.dot(x[t], theta)).sum()
             yLog_grad[t,:] = np.dot(y[t], x[t] - np.divide(numer, denom))
-
-        if Agg_data:
-            score = np.einsum('n,nd->nd', sample_share, yLog_grad)
-        else:
-            score = yLog_grad
+        
+        score = np.einsum('n,nd->nd', sample_share, yLog_grad)
 
     return score
 
@@ -254,21 +250,21 @@ def logit_t_p(theta, score, N, theta_hypothesis = 0):
     
 
 # %%
-def q_logit(Beta, y, x, Agg_data: bool = True, sample_share = None):
+def q_logit(Beta, y, x, sample_share):
     
     '''
     q: Criterion function, passed to estimate_logit().
     '''
-    return -logit_loglikehood(Beta, y, x, Agg_data, sample_share)
+    return -logit_loglikehood(Beta, y, x, sample_share)
 
 # %%
-def q_logit_score(Beta, y, x, Agg_data: bool = True, sample_share = None):
+def q_logit_score(Beta, y, x, sample_share):
     ''' 
     '''
-    return -logit_score(Beta, y, x, Agg_data, sample_share)
+    return -logit_score(Beta, y, x, sample_share)
 
 # %%
-def estimate_logit(q, Beta0, y, x, Agg_data: bool = True, sample_share = None, Analytic_jac:bool = True, options = {'disp': True}, **kwargs):
+def estimate_logit(q, Beta0, y, x, sample_share, Analytic_jac:bool = True, options = {'disp': True}, **kwargs):
     ''' 
     Takes a function and returns the minimum, given start values and 
     variables to calculate the residuals.
@@ -288,10 +284,10 @@ def estimate_logit(q, Beta0, y, x, Agg_data: bool = True, sample_share = None, A
     # The objective function is the average of q(), 
     # but Q is only a function of one variable, theta, 
     # which is what minimize() will expect
-    Q = lambda Theta: np.mean(q(Theta, y, x, Agg_data, sample_share))
+    Q = lambda Theta: np.mean(q(Theta, y, x, sample_share))
 
     if Analytic_jac == True:
-        Grad = lambda Theta: np.mean(q_logit_score(Theta, y, x, Agg_data, sample_share), axis=0) # Finds the Jacobian of Q. Takes mean of criterion q derivatives along axis=0, i.e. the mean across individuals.
+        Grad = lambda Theta: np.mean(q_logit_score(Theta, y, x, sample_share), axis=0) # Finds the Jacobian of Q. Takes mean of criterion q derivatives along axis=0, i.e. the mean across individuals.
     else:
         Grad = None
 
