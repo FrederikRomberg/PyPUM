@@ -136,7 +136,7 @@ def util(Beta, x):
     return u
 
 # %%
-def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True, Agg_data = False, sample_share = None):
+def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True, Agg_data = True, sample_share = None):
     '''
     This function calculates the likelihood contributions of a Logit model
 
@@ -199,7 +199,7 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True, Agg_data = False, sam
 # $$
 
 # %%
-def logit_score(theta, y, x, Agg_data = False, sample_share = None):
+def logit_score(theta, y, x, Agg_data = True, sample_share = None):
     ''' 
     '''
 
@@ -227,18 +227,17 @@ def logit_score(theta, y, x, Agg_data = False, sample_share = None):
     return score
 
 # %%
-def logit_se(theta, y, x, N):
+def logit_se(score, N):
     ''' 
     '''
 
-    score = logit_score(theta, y, x)
     Sigma = np.einsum('nk,nm->km', score, score)
     SE = np.sqrt(np.diag(la.inv(Sigma))) / N 
 
     return SE
 
 # %%
-def logit_t_p(theta, y, x, N, theta_hypothesis = 0):
+def logit_t_p(theta, score, N, theta_hypothesis = 0):
     ''' 
     '''
 
@@ -247,7 +246,7 @@ def logit_t_p(theta, y, x, N, theta_hypothesis = 0):
     else:
         D = len(x.keys())
 
-    SE = logit_se(theta, y, x, N)
+    SE = logit_se(score, N)
     T = np.abs(theta - theta_hypothesis) / SE
     p = t.sf(T, df = D-1)
 
@@ -255,21 +254,21 @@ def logit_t_p(theta, y, x, N, theta_hypothesis = 0):
     
 
 # %%
-def q_logit(Beta, y, x):
+def q_logit(Beta, y, x, Agg_data = True, sample_share = None):
     
     '''
     q: Criterion function, passed to estimate_logit().
     '''
-    return -logit_loglikehood(Beta, y, x)
+    return -logit_loglikehood(Beta, y, x, Agg_data, sample_share)
 
 # %%
-def q_logit_score(Beta, y, x):
+def q_logit_score(Beta, y, x, Agg_data = True, sample_share = None):
     ''' 
     '''
-    return -logit_score(Beta, y, x)
+    return -logit_score(Beta, y, x, Agg_data, sample_share)
 
 # %%
-def estimate_logit(q, Beta0, y, x, N, Analytic_jac:bool = True, options = {'disp': True}, **kwargs):
+def estimate_logit(q, Beta0, y, x, Agg_data = True, sample_share = None, Analytic_jac:bool = True, options = {'disp': True}, **kwargs):
     ''' 
     Takes a function and returns the minimum, given start values and 
     variables to calculate the residuals.
@@ -289,10 +288,10 @@ def estimate_logit(q, Beta0, y, x, N, Analytic_jac:bool = True, options = {'disp
     # The objective function is the average of q(), 
     # but Q is only a function of one variable, theta, 
     # which is what minimize() will expect
-    Q = lambda Theta: np.mean(q(Theta, y, x))
+    Q = lambda Theta: np.mean(q(Theta, y, x, Agg_data, sample_share))
 
     if Analytic_jac == True:
-        Grad = lambda Theta: np.mean(q_logit_score(Theta, y, x), axis=0) # Finds the Jacobian of Q. Takes mean of criterion q derivatives along axis=0, i.e. the mean across individuals.
+        Grad = lambda Theta: np.mean(q_logit_score(Theta, y, x, Agg_data, sample_share), axis=0) # Finds the Jacobian of Q. Takes mean of criterion q derivatives along axis=0, i.e. the mean across individuals.
     else:
         Grad = None
 
