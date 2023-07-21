@@ -136,7 +136,7 @@ def util(Beta, x):
     return u
 
 # %%
-def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True, Agg_data = True, sample_share = None):
+def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True, Agg_data: bool = True, sample_share = None):
     '''
     This function calculates the likelihood contributions of a Logit model
 
@@ -199,7 +199,7 @@ def logit_loglikehood(Beta, y, x, MAXRESCALE: bool = True, Agg_data = True, samp
 # $$
 
 # %%
-def logit_score(theta, y, x, Agg_data = True, sample_share = None):
+def logit_score(theta, y, x, Agg_data: bool = True, sample_share = None):
     ''' 
     '''
 
@@ -254,7 +254,7 @@ def logit_t_p(theta, score, N, theta_hypothesis = 0):
     
 
 # %%
-def q_logit(Beta, y, x, Agg_data = True, sample_share = None):
+def q_logit(Beta, y, x, Agg_data: bool = True, sample_share = None):
     
     '''
     q: Criterion function, passed to estimate_logit().
@@ -262,13 +262,13 @@ def q_logit(Beta, y, x, Agg_data = True, sample_share = None):
     return -logit_loglikehood(Beta, y, x, Agg_data, sample_share)
 
 # %%
-def q_logit_score(Beta, y, x, Agg_data = True, sample_share = None):
+def q_logit_score(Beta, y, x, Agg_data: bool = True, sample_share = None):
     ''' 
     '''
     return -logit_score(Beta, y, x, Agg_data, sample_share)
 
 # %%
-def estimate_logit(q, Beta0, y, x, Agg_data = True, sample_share = None, Analytic_jac:bool = True, options = {'disp': True}, **kwargs):
+def estimate_logit(q, Beta0, y, x, Agg_data: bool = True, sample_share = None, Analytic_jac:bool = True, options = {'disp': True}, **kwargs):
     ''' 
     Takes a function and returns the minimum, given start values and 
     variables to calculate the residuals.
