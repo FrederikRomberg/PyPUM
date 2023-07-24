@@ -480,4 +480,46 @@ def logit_diversion_ratio(q, Beta):
 # fig.suptitle('Logit price-to-log-income diversion ratios')
 # plt.show()
 
+# %% [markdown]
+# # BLP Estimation and instruments
+# 
+# The principles are pretty similar to what we have been doing already. Define the residual,
+# 
+# $$\xi_m(\theta) = u(X_m, \beta)$$
+# 
+# In the IPDL model, this residual is a linear function of $\theta$ which has the form
+# 
+# $$\xi_m(\theta) =  X_m \beta − r_m^0$$
+# 
+# where $r^0_m = \ln q^0_m$  with $q^0_m$ being the observed market shares in market $m$. For the BLP estimator, we set this residual orthogonal to a matrix of instruments $\hat Z_m$ of size $J_m \times K$, and find the estimator $ \hat \beta^{IV}$ which solves the moment conditions
+# 
+# $$\sum_m  s_m \hat Z_m' \xi(\hat \beta^{IV}) = 0$$
+# 
+# Where $s_m$ denotes the share of observations in our sample which belong to market $m$. Since $\hat \xi$ is linear, the moment equations have a unique solution,
+# 
+# $$\hat \beta^{IV} = \left(\sum_m s_m \hat Z_m' X_m \right)^{-1}\left(\sum_m s_m \hat Z_m' r^0_m \right)$$
+# 
+# We require an instrument for the price of the goods. This is something which is correlated with the price, but uncorrelated with the error term $\xi_m$ (in the
+# BLP model, $\xi_{mj}$ represents unobserved components of car quality). A standard instrument in this case would be a measure of marginal cost (or something which is correlated with marginal cost, like a production price index). For everything other than price, we can simply use the regressor itself as the instrument i.e. $ \hat Z^{mjk} = X^0_{mjk}$, for all other dimensions than price.
+
+# %%
+def LogitBLP_estimator(q_obs, z, x, sample_share):
+    ''' 
+    '''
+    N = len(z)
+    K = x[0].shape[1]
+
+    r = {t: np.log(q_obs[t], out = np.NINF*np.ones_like((y[t])), where = (y[t] > 0)) for t in np.arange(T)}
+    
+    sZG = np.empty((N,K,K))
+    sZr = np.empty((N,K))
+
+    for t in np.arange(N):
+        sZG[t,:,:] = sample_share[t]*np.einsum('jd,jp->dp', z[t], x[t])
+        sZr[t,:] = sample_share[t]*np.einsum('jd,j->d', z[t], r[t])
+
+    theta_hat = la.solve(sZG.sum(axis=0), sZr.sum(axis=0))
+    
+    return theta_hat
+
 
