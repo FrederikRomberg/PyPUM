@@ -509,7 +509,7 @@ def LogitBLP_estimator(q_obs, z, x, sample_share):
     N = len(z)
     K = x[0].shape[1]
 
-    r = {t: np.log(q_obs[t], out = np.NINF*np.ones_like((y[t])), where = (y[t] > 0)) for t in np.arange(N)}
+    r = {t: np.log(q_obs[t], out = np.NINF*np.ones_like((q_obs[t])), where = (q_obs[t] > 0)) for t in np.arange(N)}
     
     sZG = np.empty((N,K,K))
     sZr = np.empty((N,K))
