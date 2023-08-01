@@ -28,13 +28,7 @@ import pandas as pd
 pd.options.mode.chained_assignment = None
 import os
 from numpy import linalg as la
-from scipy import optimize
-import scipy.stats as scstat
-from matplotlib import pyplot as plt
 import itertools as iter
-
-# Files
-import Logit_file as logit
 
 # %%
 # Load dataset and variable names
@@ -59,6 +53,15 @@ OO = True
 
 # Print list of chosen variables as a dataframe
 print(pd.DataFrame(descr, index=['description'])[x_allvars].transpose().reset_index().rename(columns={'index' : 'variable names'}))
+
+# %%
+blip = ['brand']
+blup = ['brand_1', 'brand_2', 'brand_21', 'hi_1', 'hi_2', 'hp_1']
+blap = ['li1', 'li2']
+[var for var in blup if var.startswith(blip[0])]
+
+# %%
+sum([blip, blup, blap], [])
 
 # %% [markdown]
 # We now clean the data to fit our setup
@@ -154,8 +157,14 @@ def Eurocars_cleandata(dat, x_contvars, x_discretevars, z_IV_contvars, z_IV_disc
     # If outside option is included, then each variable results in a column which is 1 for the outside option, and zero for all other options. These columns are identical to the 'in_out' variable column,
     # so a second column must be dropped for each variable.
     if outside_option:
-        datx_disc = datx_disc[[var for var in datx_disc.keys() if not var.endswith('1')]] # Drops a second column from discrete columns if outside option is included
+        xdisc_keep = [[var for var in datx_disc.keys() if var.startswith(x_var)] for x_var in x_discretevars]
+        xdisc_keep = [xdisc_keep[i][1:] for i in np.arange(len(xdisc_keep))]
+        xdisc_keep = sum(xdisc_keep, [])
+        datx_disc = datx_disc[xdisc_keep] # Drops a second column from discrete columns if outside option is included
         if len(z_IV_discretevars) > 0:
+            zdisc_keep = [[var for var in datz_disc.keys() if var.startswith(z_var)] for z_var in z_IV_discretevars]
+            zdisc_keep = [zdisc_keep[i][1:] for i in np.arange(len(zdisc_keep))]
+            zdisc_keep = sum(zdisc_keep, [])
             datz_disc = datz_disc[[var for var in datz_disc.keys() if not var.endswith('1')]]
 
     # Add dummy variables onto the original DataFrame
