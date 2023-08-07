@@ -569,7 +569,7 @@ def LogitBLP_se(Beta, q_obs, z, x):
     # Find sample sizes
     T = len(x)
     S = T*np.array([x[t].shape[0] for t in np.arange(T)]).sum()
-    K = x[0].shape[0]
+    K = x[0].shape[1]
 
     # Estimate constant
     sum_Jt_xi = np.empty((T))
