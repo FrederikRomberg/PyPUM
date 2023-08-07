@@ -223,11 +223,11 @@ def logit_score(theta, y, x, sample_share):
     return score
 
 # %%
-def logit_se(score, N):
+def logit_se(score, sample_share, N):
     ''' 
     '''
 
-    Sigma = np.einsum('nk,nm->km', score, score)
+    Sigma = np.einsum('nk,nm->km', sample_share[:,None]*score, score)
     SE = np.sqrt(np.diag(la.inv(Sigma))) / N 
 
     return SE
