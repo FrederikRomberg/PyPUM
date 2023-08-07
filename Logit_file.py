@@ -223,12 +223,39 @@ def logit_score(theta, y, x, sample_share):
     return score
 
 # %%
+def logit_score_unweighted(theta, y, x):
+    ''' 
+    '''
+
+    if isinstance(x, (np.ndarray)):
+        N,J,K = x.shape
+
+        numer_term = np.einsum('nj,njk->njk', np.exp(np.einsum('k,njk->nj', theta, x)), x)
+        numer = np.einsum('j,njk->nk', np.ones((J,)), numer_term)
+        denom = np.einsum('j,nj->n', np.ones((J,)), np.exp(np.einsum('k,njk->nj', theta, x)))
+        yLog_grad = np.einsum('nj,njk->nk', y, x - (numer / denom[:,None])[:,None,:])
+        score = yLog_grad
+        
+    else:
+        T = len(x.keys())
+        yLog_grad = np.empty((T, len(theta)))
+
+        for t in np.arange(T):
+            numer = np.dot(np.exp(np.dot(x[t], theta)), x[t])
+            denom = np.exp(np.dot(x[t], theta)).sum()
+            yLog_grad[t,:] = np.dot(y[t], x[t] - np.divide(numer, denom))
+        
+        score = yLog_grad
+
+    return score
+
+# %%
 def logit_se(score, sample_share, N):
     ''' 
     '''
 
     Sigma = np.einsum('nk,nm->km', sample_share[:,None]*score, score)
-    SE = np.sqrt(np.diag(la.inv(Sigma))) / N 
+    SE = np.sqrt(np.diag(la.inv(Sigma)) / N)
 
     return SE
 
