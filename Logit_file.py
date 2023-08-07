@@ -233,7 +233,7 @@ def logit_se(score, sample_share, N):
     return SE
 
 # %%
-def logit_t_p(theta, score, N, theta_hypothesis = 0):
+def logit_t_p(theta, score, sample_share, N, theta_hypothesis = 0):
     ''' 
     '''
 
@@ -242,7 +242,7 @@ def logit_t_p(theta, score, N, theta_hypothesis = 0):
     else:
         D = len(x.keys())
 
-    SE = logit_se(score, N)
+    SE = logit_se(score, sample_share, N)
     T = np.abs(theta - theta_hypothesis) / SE
     p = t.sf(T, df = D-1)
 
