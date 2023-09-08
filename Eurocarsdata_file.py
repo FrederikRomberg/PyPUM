@@ -80,7 +80,7 @@ def Eurocars_cleandata(dat, x_contvars, x_discretevars, z_IV_contvars, z_IV_disc
     market_vals = pd.DataFrame({'ye' : [val[0] for val in market_vals], 'ma' : [val[1] for val in market_vals]}) 
     market_vals = market_vals.reset_index().rename(columns={'index' : 'market'}) # Creates market index
     dat = dat.merge(market_vals, left_on=['ye', 'ma'], right_on=['ye', 'ma'], how='left') # Merges market index variable onto dat
-    dat_org = dat # Save the original data with the 'market'-column added as 'dat_org'.
+    dat_org = dat.copy() # Save the original data with the 'market'-column added as 'dat_org'.
 
     # Create an inside/outside-option column if the outside option is included
 
