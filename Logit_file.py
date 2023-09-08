@@ -223,17 +223,44 @@ def logit_score(theta, y, x, sample_share):
     return score
 
 # %%
-def logit_se(score, N):
+def logit_score_unweighted(theta, y, x):
     ''' 
     '''
 
-    Sigma = np.einsum('nk,nm->km', score, score)
-    SE = np.sqrt(np.diag(la.inv(Sigma))) / N 
+    if isinstance(x, (np.ndarray)):
+        N,J,K = x.shape
+
+        numer_term = np.einsum('nj,njk->njk', np.exp(np.einsum('k,njk->nj', theta, x)), x)
+        numer = np.einsum('j,njk->nk', np.ones((J,)), numer_term)
+        denom = np.einsum('j,nj->n', np.ones((J,)), np.exp(np.einsum('k,njk->nj', theta, x)))
+        yLog_grad = np.einsum('nj,njk->nk', y, x - (numer / denom[:,None])[:,None,:])
+        score = yLog_grad
+        
+    else:
+        T = len(x.keys())
+        yLog_grad = np.empty((T, len(theta)))
+
+        for t in np.arange(T):
+            numer = np.dot(np.exp(np.dot(x[t], theta)), x[t])
+            denom = np.exp(np.dot(x[t], theta)).sum()
+            yLog_grad[t,:] = np.dot(y[t], x[t] - np.divide(numer, denom))
+        
+        score = yLog_grad
+
+    return score
+
+# %%
+def logit_se(score, sample_share, N):
+    ''' 
+    '''
+
+    Sigma = np.einsum('nk,nm->km', sample_share[:,None]*score, score)
+    SE = np.sqrt(np.diag(la.inv(Sigma)) / N)
 
     return SE
 
 # %%
-def logit_t_p(theta, score, N, theta_hypothesis = 0):
+def logit_t_p(theta, score, sample_share, N, theta_hypothesis = 0):
     ''' 
     '''
 
@@ -242,7 +269,7 @@ def logit_t_p(theta, score, N, theta_hypothesis = 0):
     else:
         D = len(x.keys())
 
-    SE = logit_se(score, N)
+    SE = logit_se(score, sample_share, N)
     T = np.abs(theta - theta_hypothesis) / SE
     p = t.sf(T, df = D-1)
 
@@ -487,7 +514,7 @@ def logit_diversion_ratio(q, Beta):
 # 
 # $$\xi_m(\theta) = u(X_m, \beta)$$
 # 
-# In the IPDL model, this residual is a linear function of $\theta$ which has the form
+# In the Logit model, this residual is a linear function of $\theta$ which has the form
 # 
 # $$\xi_m(\theta) =  X_m \beta − r_m^0$$
 # 
@@ -498,6 +525,18 @@ def logit_diversion_ratio(q, Beta):
 # Where $s_m$ denotes the share of observations in our sample which belong to market $m$. Since $\hat \xi$ is linear, the moment equations have a unique solution,
 # 
 # $$\hat \beta^{IV} = \left(\sum_m s_m \hat Z_m' X_m \right)^{-1}\left(\sum_m s_m \hat Z_m' r^0_m \right)$$
+# 
+# An estimator for the constant $\sigma^2$ is given by:
+# 
+# $$
+# \hat \sigma^2 = \frac{1}{S} \sum_t\sum_{j = 1}^{J_t} \xi_{tj}(\hat \beta^{IV})^2
+# $$
+# 
+# Where $S = T * \sum_t J_t$ is the number of observations in each market. An estimate of the variance of the parameter estimates $\hat \beta^{IV}$ is then given by:
+# 
+# $$
+# \hat \Sigma = \hat \sigma^2 \left(\sum_t Z_t'Z_t\right)^{-1}
+# $$
 # 
 # We require an instrument for the price of the goods. This is something which is correlated with the price, but uncorrelated with the error term $\xi_m$ (in the
 # BLP model, $\xi_{mj}$ represents unobserved components of car quality). A standard instrument in this case would be a measure of marginal cost (or something which is correlated with marginal cost, like a production price index). For everything other than price, we can simply use the regressor itself as the instrument i.e. $ \hat Z^{mjk} = X^0_{mjk}$, for all other dimensions than price.
@@ -521,5 +560,35 @@ def LogitBLP_estimator(q_obs, z, x, sample_share):
     theta_hat = la.solve(sZG.sum(axis=0), sZr.sum(axis=0))
     
     return theta_hat
+
+# %%
+def LogitBLP_se(Beta, q_obs, z, x):
+    ''' 
+    '''
+
+    # Find sample sizes
+    T = len(x)
+    S = T*np.array([x[t].shape[0] for t in np.arange(T)]).sum()
+    K = x[0].shape[1]
+
+    # Estimate constant
+    sum_Jt_xi = np.empty((T))
+
+    for t in np.arange(T):
+        sum_Jt_xi[t] = ((x[t]@Beta - np.log(q_obs[t]))**2).sum()
+
+    sigma2_hat = sum_Jt_xi.sum() / S
+
+    # Find Standard errors
+
+    ZZ = np.empty((T,K,K))
+
+    for t in np.arange(T):
+        ZZ[t,:,:] = (z[t].T)@z[t]
+
+    Sigma = sigma2_hat*la.inv(ZZ.sum(axis = 0))
+    SE = np.sqrt(np.diag(Sigma))
+
+    return SE
 
 
