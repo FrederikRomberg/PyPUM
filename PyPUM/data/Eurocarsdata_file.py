@@ -34,8 +34,8 @@ import itertools as iter
 # Load dataset and variable names
 
 input_path = os.getcwd() # Assigns input path as current working directory (cwd)
-descr = (pd.read_stata(os.path.join(input_path,'eurocars.dta'), iterator = True)).variable_labels() # Obtain variable descriptions
-dat_file = pd.read_csv(os.path.join(input_path, 'eurocars.csv')) # reads in the data set as a pandas dataframe.
+descr = (pd.read_stata('../data/eurocars.dta', iterator = True)).variable_labels() # Obtain variable descriptions
+dat_file = pd.read_csv('../data/eurocars.csv') # reads in the data set as a pandas dataframe.
 pd.DataFrame(descr, index=['description']).transpose().reset_index().rename(columns={'index' : 'variable names'}) # Prints data sets
 # Choose which variables to include in the analysis, and assign them either as discrete variables or continuous.
 
