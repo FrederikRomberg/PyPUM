@@ -10,6 +10,7 @@
 import numpy as np
 import pandas as pd 
 import os
+import sys
 from numpy import linalg as la
 from scipy import optimize
 from scipy.stats import t
@@ -63,10 +64,8 @@ import itertools as iter
 
 # %%
 # Load dataset and variable names
-os.chdir('../GREENCAR_notebooks/')
-input_path = os.getcwd() # Assigns input path as current working directory (cwd)
-dat = pd.read_csv(os.path.join(input_path, 'car_data.csv'))
-lab = pd.read_csv(os.path.join(input_path, 'car_labels.csv'), index_col = 'variable')
+dat = pd.read_csv("../data/car_data.csv")
+lab = pd.read_csv('../data/car_labels.csv', index_col = 'variable')
 
 # %%
 display.Image('brownstone_train_tab_1.PNG')
