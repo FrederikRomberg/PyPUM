@@ -32,7 +32,6 @@ import itertools as iter
 
 # %%
 # Load dataset and variable names
-# os.chdir('../GREENCAR_notebooks/') # Assigns work directory
 
 input_path = os.getcwd() # Assigns input path as current working directory (cwd)
 descr = (pd.read_stata('eurocars.dta', iterator = True)).variable_labels() # Obtain variable descriptions
