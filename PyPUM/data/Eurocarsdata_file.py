@@ -34,7 +34,7 @@ import itertools as iter
 # Load dataset and variable names
 
 input_path = os.getcwd() # Assigns input path as current working directory (cwd)
-descr = (pd.read_stata('eurocars.dta', iterator = True)).variable_labels() # Obtain variable descriptions
+descr = (pd.read_stata(os.path.join(input_path,'eurocars.dta'), iterator = True)).variable_labels() # Obtain variable descriptions
 dat_file = pd.read_csv(os.path.join(input_path, 'eurocars.csv')) # reads in the data set as a pandas dataframe.
 pd.DataFrame(descr, index=['description']).transpose().reset_index().rename(columns={'index' : 'variable names'}) # Prints data sets
 # Choose which variables to include in the analysis, and assign them either as discrete variables or continuous.
@@ -52,15 +52,6 @@ OO = True
 
 # Print list of chosen variables as a dataframe
 print(pd.DataFrame(descr, index=['description'])[x_allvars].transpose().reset_index().rename(columns={'index' : 'variable names'}))
-
-# %%
-blip = ['brand']
-blup = ['brand_1', 'brand_2', 'brand_21', 'hi_1', 'hi_2', 'hp_1']
-blap = ['li1', 'li2']
-[var for var in blup if var.startswith(blip[0])]
-
-# %%
-sum([blip, blup, blap], [])
 
 # %% [markdown]
 # We now clean the data to fit our setup
