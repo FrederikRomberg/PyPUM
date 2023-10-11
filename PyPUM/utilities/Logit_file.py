@@ -178,7 +178,7 @@ def logit_se(score, sample_share, N):
     return SE
 
 # %%
-def logit_t_p(theta, score, sample_share, N, theta_hypothesis = 0):
+def logit_t_p(x, theta, score, sample_share, N, theta_hypothesis = 0):
     ''' 
     '''
 
