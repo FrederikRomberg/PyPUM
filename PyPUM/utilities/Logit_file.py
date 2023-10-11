@@ -18,6 +18,13 @@ from IPython import display
 from matplotlib import pyplot as plt
 import itertools as iter
 
+# Files
+module_path = os.path.abspath(os.path.join('../'))
+if module_path not in sys.path:
+    sys.path.append(module_path)
+
+data_path = os.path.join(module_path, 'data')
+
 # %% [markdown]
 # Data
 # ====
@@ -64,8 +71,8 @@ import itertools as iter
 
 # %%
 # Load dataset and variable names
-dat = pd.read_csv("../data/car_data.csv")
-lab = pd.read_csv('../data/car_labels.csv', index_col = 'variable')
+dat = pd.read_csv(os.path.join(data_path,'car_data.csv'))
+lab = pd.read_csv(os.path.join(data_path,'car_labels.csv'), index_col = 'variable')
 
 # %%
 display.Image('brownstone_train_tab_1.PNG')
