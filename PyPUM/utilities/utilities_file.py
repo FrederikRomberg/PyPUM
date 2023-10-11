@@ -37,7 +37,7 @@ def rank_test(x):
     '''
 
     if (isinstance(x, (np.ndarray))):
-        if &(x.ndim == 3)
+        if (x.ndim == 3):
             T,J,K = x.shape
             xpsied = x.reshape((T*J,K))
         else:
