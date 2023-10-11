@@ -15,7 +15,6 @@ import scipy.stats as scstat
 from matplotlib import pyplot as plt
 import itertools as iter
 
-
 # Files
 module_path = os.path.abspath(os.path.join('..'))
 if module_path not in sys.path:
@@ -37,9 +36,12 @@ def rank_test(x):
         a print statement concerning the rank of x
     '''
 
-    if (isinstance(x, (np.ndarray)))&(x.ndim == 3):
-        T,J,K = x.shape
-        xpsied = x.reshape((T*J,K))
+    if (isinstance(x, (np.ndarray))):
+        if &(x.ndim == 3)
+            T,J,K = x.shape
+            xpsied = x.reshape((T*J,K))
+        else:
+            print('x is array of dim != 3')
     else:
         T = len(x)
         xpsied = np.concatenate([x[t] for t in np.arange(T)], axis = 0)
