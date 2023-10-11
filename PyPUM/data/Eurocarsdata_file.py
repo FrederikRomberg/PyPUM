@@ -1,26 +1,7 @@
 # %% [markdown]
-# Data
-# ====
+# # Eurocarsdata_file
 # 
-# The dataset consists of approximately 110 vehicle makes per year in the period 1970-1999 in five European markets (Belgium, France, Germany, Italy, and the United Kingdom). The data set includes 47 variables in total. The first four columns are market and product codes for the year, country, and make as well as quantity sold (No. of new registrations) which will be used in computing observed market shares. The remaining variables consist of car characteristics such as prices, horse power, weight and other physical car characteristics as well as macroeconomic variables such as GDP per capita which have been used to construct estimates of the average wage income and purchasing power.
-# 
-# We have in total 30 years and 5 countries, totalling $T=150$ year-country combinations, indexed by $t$, and we refer to each simply as market $t$. In market $t$, the choice set is $\mathcal{J}_t$ which includes the set of available makes as well as an outside option. Let $\mathcal{J} := \bigcup_{t=1}^T \mathcal{J}_t$ be the full choice set and 
-#  $J:=\#\mathcal{J}$ the number of choices which were available in at least one market, for this data set there are $J=357$ choices.
-#  
-# 
-
-# %% [markdown]
-# Reading in the dataset `eurocars.csv` we thus have a dataframe of $\sum_{t=1}^T \#\mathcal{J}_t = 11459$ rows and $47$ columns. The `ye` column runs through $y=70,\ldots,99$, the `ma` column runs through $m=1,\ldots,M$, and the ``co`` column takes values $j\in \mathcal{J}$. 
-# 
-# Because we consider a country-year pair as the level of observation, we construct a `market` column taking values $t=1,\ldots,T$. In Python, this variable will take values $t=0,\ldots,T-1$. We construct an outside option $j=0$ in each market $t$ by letting the 'sales' of $j=0$ be determined as 
-# 
-# $$\mathrm{sales}_{0t} = \mathrm{pop}_t - \sum_{j=1}^J \mathrm{sales}_{jt}$$
-# 
-# where $\mathrm{pop}_t$ is the total population in market $t$, and the car characteristics of the outside option is set to zero. The market shares of each product in market $t$ can then be found as
-# $$
-# \textrm{market share}_{jt}=\frac{\mathrm{sales_{jt}}}{\mathrm{pop}_t}.
-# $$
-# We also read in the variable description of the dataset contained in `eurocars.dta`. We will use the list `x_vars` throughout to work with our explanatory variables. 
+# This file contains functions which are used in cleaning the `Eurocars.csv` dataset.
 
 # %%
 import numpy as np
@@ -29,32 +10,6 @@ pd.options.mode.chained_assignment = None
 import os
 from numpy import linalg as la
 import itertools as iter
-
-# %%
-# Load dataset and variable names
-
-input_path = os.getcwd() # Assigns input path as current working directory (cwd)
-descr = (pd.read_stata('../data/eurocars.dta', iterator = True)).variable_labels() # Obtain variable descriptions
-dat_file = pd.read_csv('../data/eurocars.csv') # reads in the data set as a pandas dataframe.
-pd.DataFrame(descr, index=['description']).transpose().reset_index().rename(columns={'index' : 'variable names'}) # Prints data sets
-# Choose which variables to include in the analysis, and assign them either as discrete variables or continuous.
-
-# %%
-
-x_discretevars = [ 'brand', 'home', 'cla']
-x_contvars = ['cy', 'hp', 'we', 'le', 'wi', 'he', 'li', 'sp', 'ac', 'pr']
-z_IV_contvars = ['xexr']
-z_IV_discretevars = []
-x_allvars =  [*x_contvars, *x_discretevars]
-
-# Outside option is included if OO == True, otherwise analysis is done on the inside options only.
-OO = True
-
-# Print list of chosen variables as a dataframe
-print(pd.DataFrame(descr, index=['description'])[x_allvars].transpose().reset_index().rename(columns={'index' : 'variable names'}))
-
-# %% [markdown]
-# We now clean the data to fit our setup
 
 # %%
 def Eurocars_cleandata(dat, x_contvars, x_discretevars, z_IV_contvars, z_IV_discretevars, outside_option = True):
@@ -180,17 +135,6 @@ def Eurocars_cleandata(dat, x_contvars, x_discretevars, z_IV_contvars, z_IV_disc
     return dat,dat_org,x_vars,z_vars,N,pop_share,T,J,K
 
 # %%
-dat, dat_org, x_vars, z_vars, N, pop_share, T, J, K = Eurocars_cleandata(dat_file, x_contvars, x_discretevars, z_IV_contvars, z_IV_discretevars, outside_option = OO)
-
-# %%
-# Create dictionaries of numpy arrays for each market. This allows the size of the data set to vary over markets.
-
-dat = dat.reset_index(drop = True).sort_values(by = ['market', 'co']) # Sort data so that reshape is successfull
-
-x = {t: dat[dat['market'] == t][x_vars].values.reshape((J[t],K)) for t in np.arange(T)} # Dict of explanatory variables
-y = {t: dat[dat['market'] == t]['ms'].to_numpy().reshape((J[t])) for t in np.arange(T)} # Dict of market shares
-
-# %%
 # This function tests whether the utility parameters are identified, by looking at the rank of the stacked matrix of explanatory variables.
 
 def rank_test(x):
@@ -201,8 +145,5 @@ def rank_test(x):
         print('x does not have full rank')
     else:
         print('x has full rank')
-
-# %%
-rank_test(x)
 
 
