@@ -93,7 +93,7 @@ def kernel_estimate(x_cont, cont_vars, x_min, x_max, n_points, J, outside_option
     return f_hat
 
 # %%
-def test_analyticgrad(y, x, theta, sample_share, loglikelihood, score, model, delta = 1.0e-8):
+def numerical_grad(y, x, theta, sample_share, loglikelihood, specification, model == 'IPDL', delta = 1.0e-8):
     ''' 
     This function calculates the numerical and the analytical score functions at a given parameter \theta aswell the norm of their difference
 
@@ -117,16 +117,19 @@ def test_analyticgrad(y, x, theta, sample_share, loglikelihood, score, model, de
 
     numgrad = np.empty((T, K+G))
 
-    for i in np.arange(K+G):
-        vec = np.zeros((K+G,))
-        vec[i] = 1
-        numgrad[:,i] = (loglikelihood(theta + delta*vec, y, x, sample_share, model) - loglikelihood(theta, y, x, sample_share, model)) / delta
+    if model == 'IPDL':
+        for i in np.arange(K+G):
+            vec = np.zeros((K+G,))
+            vec[i] = 1
+            numgrad[:,i] = (loglikelihood(theta + delta*vec, y, x, sample_share, specification[0], specification[1]) - loglikelihood(theta, y, x, sample_share, specification[0], specification[1])) / delta
 
-    angrad = score(theta, y, x, sample_share, model)
-
-    normdiff = la.norm(angrad - numgrad)
+    else:
+        for i in np.arange(K+G):
+            vec = np.zeros((K+G,))
+            vec[i] = 1
+            numgrad[:,i] = (loglikelihood(theta + delta*vec, y, x, sample_share, specification) - loglikelihood(theta, y, x, sample_share, specification)) / delta
     
-    return normdiff, angrad, normdiff
+    return numgrad
 
 # %%
 def Reg_t_p(SE, Theta, N, Theta_hypothesis = 0):
