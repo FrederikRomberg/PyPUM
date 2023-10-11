@@ -93,7 +93,7 @@ def kernel_estimate(x_cont, cont_vars, x_min, x_max, n_points, J, outside_option
     return f_hat
 
 # %%
-def numerical_grad(y, x, theta, sample_share, loglikelihood, specification, model == 'IPDL', delta = 1.0e-8):
+def numerical_grad(y, x, theta, sample_share, loglikelihood, specification, model = 'IPDL', delta = 1.0e-8):
     ''' 
     This function calculates the numerical and the analytical score functions at a given parameter \theta aswell the norm of their difference
 
