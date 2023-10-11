@@ -138,6 +138,8 @@ def Eurocars_cleandata(dat, x_contvars, x_discretevars, z_IV_contvars, z_IV_disc
 # This function tests whether the utility parameters are identified, by looking at the rank of the stacked matrix of explanatory variables.
 
 def rank_test(x):
+    T = len(x)
+
     x_stacked = np.concatenate([x[t] for t in np.arange(T)], axis = 0)
     eigs=la.eig(x_stacked.T@x_stacked)[0]
 
