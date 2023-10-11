@@ -14,7 +14,7 @@ from scipy import optimize
 import scipy.stats as scstat
 from matplotlib import pyplot as plt
 import itertools as iter
-%load_ext line_profiler
+
 
 # Files
 module_path = os.path.abspath(os.path.join('..'))
